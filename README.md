@@ -61,6 +61,22 @@ uv run python -m codegraph.cli callees auth.login --db cg.db --depth 3
 uv run python -m codegraph.cli search "做登录鉴权的函数" --db cg.db --repo examples/sample_repo --k 5
 ```
 
+# 6) Web 可视化界面：浏览器里看图谱、搜符号、查爆炸半径
+uv run python -m codegraph.server --db cg.db --repo examples/sample_repo --port 8000
+# 打开 http://localhost:8000/
+
+### Web 可视化界面
+
+内置一个零依赖（标准库 `http.server`）的浏览器界面，复用 CLI 同一套 db / impact / retrieval 查询：
+
+- **图谱可视化**：文件 / 类 / 函数节点 + CALLS / CONTAINS / HAS_METHOD / IMPORTS 边（vis-network，CDN 加载；断网则降级为文字提示）
+- **统计卡片**：文件 / 函数 / 类 / 边数量、语言分布（按扩展名：Python / JavaScript / TypeScript / Java）
+- **符号查找**：输入片段定位符号并跳转图谱
+- **选中节点**：查看该符号的上游 / 下游调用 + 爆炸半径（impact）
+- **语义检索**：同 M4 的 BM25 + 向量混合检索（首次触发会建索引 + 加载 embedding 模型，较慢）
+
+API（JSON）：`/api/stats`、`/api/graph?limit=`、`/api/symbols?q=`、`/api/impact?symbol=&depth=`、`/api/callers|callees?symbol=&depth=`、`/api/search?q=&k=`。
+
 ### 语义检索（M4）
 
 **检索引擎本身没有大模型**——是本地、确定、免费的计算：BM25 关键词 + 本地 embedding 向量（多语言模型，首次用自动下载 ~470MB 到本地缓存），再用 RRF 融合排序。LLM 在最外层、可选（见 tools.py 的 `semantic_search` Agent 工具）。
