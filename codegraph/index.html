@@ -161,19 +161,31 @@ async function loadModules(){
   }catch(e){ document.getElementById("modList").innerHTML='<div class="hint">'+e.message+'</div>'; }
 }
 
+function nodeStyle(n){ return {id:n.id,label:n.label==="Function"?n.name:n.file||n.name,
+  title:`${n.label}\n${n.file}`,group:n.label,
+  shape:NODE[n.label].shape,borderWidth:1.4,
+  color:{background:NODE[n.label].bg,border:NODE[n.label].border,highlight:{background:NODE[n.label].border,border:"#fff"}},
+  size:NODE[n.label].w,
+  font:{color:"#cdd6e4",size:n.label==="File"?12:10,face:"ui-monospace,Menlo,monospace"}} }
+function edgeStyle(e){ return {from:e.from,to:e.to,color:{color:EDGE[e.type]?EDGE[e.type].c:"#556"},
+  width:EDGE[e.type]?EDGE[e.type].w:1,title:e.type,smooth:{enabled:true,type:"dynamic"}} }
+
+// 按需展开：点击节点动态加载其邻居子图，避免一次全量渲染（参考 Sourcegraph/Neo4j 导航）
+async function expandNode(id){
+  try{
+    const g=await jget(`/api/graph?seed=${encodeURIComponent(id)}&depth=1&limit=100`);
+    if(!g.nodes.length) return;
+    network.body.data.nodes.add(g.nodes.map(nodeStyle));
+    network.body.data.edges.add(g.edges.map(edgeStyle));
+    network.fit({animation:{duration:300,easingFunction:"easeInOutQuad"}});
+  }catch(e){ /* 静默 */ }
+}
+
 async function loadGraph(){
   try{
-    const g=await jget("/api/graph?limit=800");
-    const nodes=g.nodes.map(n=>({id:n.id,label:n.label==="Function"?n.name:n.file||n.name,
-      title:`${n.label}\n${n.file}`,group:n.label,
-      shape:NODE[n.label].shape,borderWidth:1.4,
-      color:{background:NODE[n.label].bg,border:NODE[n.label].border,highlight:{background:NODE[n.label].border,border:"#fff"}},
-      size:NODE[n.label].w,
-      font:{color:"#cdd6e4",size:n.label==="File"?12:10,face:"ui-monospace,Menlo,monospace"}}));
-    const edges=g.edges.map(e=>({from:e.from,to:e.to,
-      color:{color:EDGE[e.type]?EDGE[e.type].c:"#556"},
-      width:EDGE[e.type]?EDGE[e.type].w:1,title:e.type,
-      smooth:{enabled:true,type:"dynamic"}}));
+    // 初始只渲染精简种子层（File+Class，限量），不渲染海量 Function
+    const g=await jget("/api/graph?limit=120");
+    const nodes=g.nodes.map(nodeStyle), edges=g.edges.map(edgeStyle);
     const container=document.getElementById("graph");
     network=new vis.Network(container,
       {nodes:new vis.DataSet(nodes),edges:new vis.DataSet(edges)},
@@ -184,19 +196,19 @@ async function loadGraph(){
          barnesHut:{gravitationalConstant:-3800,centralGravity:0.02,springLength:110,springConstant:0.03,damping:0.09},
          stabilization:{enabled:true,iterations:220,updateInterval:40}},
        interaction:{hover:true,tooltipDelay:120,zoomView:true,dragView:true,
-         navigationButtons:true,keyboard:true,
-         highlightNearest:{enabled:true,degree:1,hover:true,algorithm:"hierarchical"}},
+         navigationButtons:true,keyboard:true},
        groups:{
          File:{color:{background:"#5a3a1e",border:"#f0a35e"}},
          Class:{color:{background:"#1f5c56",border:"#4fd1c5"}},
          Function:{color:{background:"#25418a",border:"#5b8def"}}}});
-    network.on("click",p=>{ if(p.nodes.length) showDetail(p.nodes[0]); });
+    network.on("click",p=>{ if(p.nodes.length){ showDetail(p.nodes[0]); expandNode(p.nodes[0]); } });
+    network.on("doubleClick",p=>{ if(p.nodes.length) expandNode(p.nodes[0]); });
     if(!nodes.length) container.innerHTML='<div class="hint" style="padding:24px">图谱为空，先运行 codegraph analyze 建库。</div>';
   }catch(e){ document.getElementById("graph").innerHTML='<div class="hint" style="padding:24px">图谱加载失败：'+e.message+'</div>'; }
 }
 
 function focus(id){ if(network){ try{ network.focus(id,{scale:1.4,animation:{duration:400,easingFunction:"easeInOutQuad"}}); network.selectNodes([id]); }catch(_){} } }
-async function focusMod(m){ if(!network) return; const g=await jget("/api/graph?limit=800"); const ids=g.nodes.filter(n=>(n.file||"").startsWith(m)||(n.name||"").startsWith(m)).map(n=>n.id); if(ids.length){ network.selectNodes(ids); network.fit({nodes:ids,animation:{duration:500}}); } }
+async function focusMod(m){ if(!network) return; const g=await jget("/api/graph?limit=120"); const ids=g.nodes.filter(n=>(n.file||"").startsWith(m)||(n.name||"").startsWith(m)).map(n=>n.id); if(ids.length){ network.selectNodes(ids); network.fit({nodes:ids,animation:{duration:500}}); } }
 
 async function showDetail(id){
   const d=document.getElementById("detail"); d.innerHTML='<div class="hint">分析中…</div>';

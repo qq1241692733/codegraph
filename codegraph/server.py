@@ -78,27 +78,80 @@ class _App:
             c.close()
 
     # ---------- 图谱（可视化） ----------
-    def graph(self, limit: int = 500) -> dict:
+    # 设计：不一次全量渲染。graph(seed=None) 只返回精简种子层（File+Class，限量）；
+    # 点击节点时 graph(seed=<id>) 按需返回该符号的 depth 层邻居子图，由前端动态加入。
+    # 参考 Sourcegraph/Neo4j Bloom 的按需导航，避免几千节点一次渲染导致卡顿。
+    def graph(self, limit: int = 200, seed: str | None = None, depth: int = 1) -> dict:
         c = self.conn()
         try:
+            if seed:
+                return self._expand(c, seed, depth, limit)
+            # 精简种子层：只 File + Class（不渲染海量 Function），渲染量可控
             nodes, edges = [], []
-            # 节点：File + Function + Class（控制数量避免前端卡）
-            for label in ("File", "Function", "Class"):
+            for label in ("File", "Class"):
                 file_col = "n.path" if label == "File" else "n.file"
                 q = (f"MATCH (n:{label}) RETURN n.id AS id, n.name AS name, "
                      f"{file_col} AS file LIMIT {limit}")
                 for r in db._rows(c, q, {}):
                     nodes.append({"id": r["id"], "label": label, "name": r["name"],
                                   "file": r["file"] or ""})
-            # 边：先 CALLS（核心），再 HAS_METHOD / IMPORTS / CONTAINS（限量）
+            node_ids = {n["id"] for n in nodes}
+            # 种子层内部边：CONTAINS(File→Class) + HAS_METHOD + IMPORTS
             for t, typ, src, dst in db.REL_TABLES:
-                lim = limit * 3 if typ == "CALLS" else limit
-                q = f"MATCH (a)-[r:{t}]->(b) RETURN a.id AS s, b.id AS d LIMIT {lim}"
+                q = (f"MATCH (a)-[r:{t}]->(b) RETURN a.id AS s, b.id AS d "
+                     f"LIMIT {limit * 3}")
                 for r in db._rows(c, q, {}):
-                    edges.append({"from": r["s"], "to": r["d"], "type": typ})
+                    if r["s"] in node_ids and r["d"] in node_ids:
+                        edges.append({"from": r["s"], "to": r["d"], "type": typ})
             return {"nodes": nodes, "edges": edges}
         finally:
             c.close()
+
+    def _node_info(self, c, id_: str) -> dict | None:
+        """按 id 反查节点类型与信息（File 用 path，Function/Class 用 file）。"""
+        for label, file_col in (("File", "path"), ("Function", "file"), ("Class", "file")):
+            q = (f"MATCH (n:{label}) WHERE n.id = $id RETURN n.id AS id, n.name AS name, "
+                 f"n.{file_col} AS file")
+            r = db._rows(c, q, {"id": id_})
+            if r:
+                return {"id": r[0]["id"], "label": label, "name": r[0]["name"],
+                        "file": r[0]["file"] or ""}
+        return None
+
+    def _expand(self, c, seed: str, depth: int, limit: int) -> dict:
+        """以 seed 为根，BFS 沿所有关系收集 depth 层邻居子图（按需加载）。"""
+        nodes, edges = {}, {}
+        frontier = {seed}
+        seen = {seed}
+        root = self._node_info(c, seed)
+        if root:
+            nodes[seed] = root
+        for _ in range(max(1, depth)):
+            nxt = set()
+            for cur in frontier:
+                for t, typ, src, dst in db.REL_TABLES:
+                    for direction, key in (("out", "d"), ("in", "s")):
+                        if direction == "out":
+                            q = (f"MATCH (a)-[r:{t}]->(b) WHERE a.id = $s "
+                                 f"RETURN b.id AS nid LIMIT {limit}")
+                        else:
+                            q = (f"MATCH (a)-[r:{t}]->(b) WHERE b.id = $s "
+                                 f"RETURN a.id AS nid LIMIT {limit}")
+                        for r in db._rows(c, q, {"s": cur}):
+                            nid = r["nid"]
+                            if nid not in seen:
+                                info = self._node_info(c, nid)
+                                if info:
+                                    nodes[nid] = info
+                                    nxt.add(nid)
+                            edges.setdefault((cur, nid, typ), True)
+                            edges.setdefault((nid, cur, typ), True)
+            frontier = nxt
+            seen |= nxt
+            if not frontier:
+                break
+        return {"nodes": list(nodes.values()),
+                "edges": [{"from": s, "to": d, "type": t} for (s, d, t) in edges]}
 
     # ---------- 符号 / 调用 ----------
     def symbols(self, q: str, limit: int = 50) -> list[dict]:
@@ -190,7 +243,10 @@ class _Handler(BaseHTTPRequestHandler):
             if path == "/api/stats":
                 return self._send_json(self.app.stats())
             if path == "/api/graph":
-                return self._send_json(self.app.graph(int(params.get("limit", ["500"])[0])))
+                return self._send_json(self.app.graph(
+                    int(params.get("limit", ["200"])[0]),
+                    params.get("seed", [None])[0] or None,
+                    int(params.get("depth", ["1"])[0])))
             if path == "/api/symbols":
                 return self._send_json(
                     self.app.symbols(params.get("q", [""])[0], int(params.get("limit", ["50"])[0])))
