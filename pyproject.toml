@@ -1,0 +1,30 @@
+[project]
+name = "codegraph"
+version = "0.1.0"
+description = "自研代码图谱：把 Python 仓库解析为调用图（借鉴 GitNexus 思路），用 KuzuDB 存储，通过 Deep Agents 暴露架构感知的 impact/context/query 工具"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # 核心分析层
+    "kuzu>=0.11.3",
+    "tree-sitter>=0.26.0",
+    "tree-sitter-python>=0.25.0",
+    # Agent 能力层（M3）：Deep Agents + 一个示例 LLM provider
+    # 实际使用时把 langchain-openai 换成你要的 provider（anthropic 等）
+    "deepagents>=0.7.22",
+    "langchain-openai>=1.6.7",
+    "fastembed>=0.8.1",
+    "tree-sitter-javascript>=0.25.0",
+    "tree-sitter-typescript>=0.23.2",
+    "tree-sitter-java>=0.23.5",
+]
+
+[project.scripts]
+codegraph = "codegraph.cli:main"
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true
+
+[tool.uv]
+package = true

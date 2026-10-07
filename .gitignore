@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# 测试用的 git 子克隆（大）
+.test_repos/
+
+# 图谱数据库与快照
+*.db
+*.db.wal
+*.snapshot.json
