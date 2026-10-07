@@ -3,192 +3,242 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>codegraph · 代码图谱</title>
+<title>codegraph · 代码知识图谱</title>
 <style>
   :root{
-    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --border:#2a2f3a;
-    --text:#e6e9ef; --muted:#8b93a3; --accent:#4f8cff; --green:#3ecf8e;
-    --py:#4f8cff; --js:#e8c84a; --ts:#3ea8ff; --java:#ff7b5c;
+    --bg:#0b0e14; --panel:#12161f; --panel2:#1a2030; --border:#232b3d;
+    --text:#e8ecf4; --muted:#8a94a8; --dim:#5b6478;
+    --file:#f0a35e; --class:#4fd1c5; --func:#5b8def; --edge-calls:#8a94ff;
+    --edge-contains:#3d4c66; --edge-has:#9d7bff; --edge-imports:#2f3a52;
+    --accent:#4f8cff; --green:#3ecf8e;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);font-size:14px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
-  header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--border)}
-  header h1{font-size:16px;font-weight:600}
-  header .repo{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .stats{display:flex;gap:18px;margin-left:auto}
-  .stat{text-align:center}
-  .stat b{display:block;font-size:16px;color:var(--accent)}
-  .stat span{font-size:11px;color:var(--muted)}
+  html,body{height:100%}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:13px;display:flex;flex-direction:column;overflow:hidden}
+  /* ── Header ── */
+  header{display:flex;align-items:center;gap:14px;padding:12px 18px;background:linear-gradient(180deg,#141927,#0b0e14);border-bottom:1px solid var(--border);flex-shrink:0}
+  .brand{display:flex;align-items:center;gap:10px}
+  .logo{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--class));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;box-shadow:0 0 14px rgba(79,140,255,.5)}
+  .brand h1{font-size:15px;font-weight:700;letter-spacing:.3px}
+  .repo{color:var(--muted);font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:340px}
+  .stats{display:flex;gap:0;margin-left:auto;background:var(--panel2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .stat{padding:7px 16px;text-align:center;border-right:1px solid var(--border)}
+  .stat:last-child{border-right:none}
+  .stat b{display:block;font-size:15px;color:#fff;font-variant-numeric:tabular-nums}
+  .stat span{font-size:10px;color:var(--muted);letter-spacing:.5px}
+  /* ── 布局 ── */
   main{flex:1;display:flex;min-height:0}
-  aside{width:320px;min-width:320px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
-  .sec{padding:12px 14px;border-bottom:1px solid var(--border)}
-  .sec h3{font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600;letter-spacing:.4px}
-  input{width:100%;padding:7px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;outline:none}
-  input:focus{border-color:var(--accent)}
-  .btn{margin-top:8px;width:100%;padding:7px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-size:13px;cursor:pointer}
+  aside{width:300px;min-width:300px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+  #graph{flex:1;position:relative;background:radial-gradient(ellipse at 50% 40%,#131a28 0%,var(--bg) 70%)}
+  /* ── 侧栏 ── */
+  .sec{padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+  .sec h3{font-size:11px;color:var(--muted);margin-bottom:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase}
+  input{width:100%;padding:9px 12px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;transition:border-color .15s}
+  input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,140,255,.15)}
+  input::placeholder{color:var(--dim)}
+  .btn{margin-top:8px;width:100%;padding:9px;background:linear-gradient(135deg,var(--accent),#3a6fd8);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:filter .15s}
+  .btn:hover{filter:brightness(1.1)}
   .btn:disabled{opacity:.5;cursor:default}
-  .list{display:flex;flex-direction:column;gap:4px;margin-top:8px}
-  .row{padding:6px 9px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;align-items:center}
-  .row:hover{border-color:var(--accent)}
-  .row .id{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .row .tag{font-size:10px;color:var(--muted);flex-shrink:0}
-  .hint{color:var(--muted);font-size:11px;margin-top:6px}
-  #graph{flex:1;position:relative}
-  .langbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-  .langbar span{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--panel2);border:1px solid var(--border)}
-  .legend{position:absolute;bottom:12px;left:12px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px;display:flex;gap:10px;flex-wrap:wrap}
-  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
-  #detail{margin-top:8px}
-  .kv{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px dashed var(--border)}
-  .kv span{color:var(--muted)}
-  .kv b{font-weight:500}
-  .up{color:var(--green)} .down{color:var(--ts)}
+  .list{display:flex;flex-direction:column;gap:5px;margin-top:10px;max-height:180px;overflow-y:auto}
+  .row{padding:7px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;align-items:center;transition:border-color .12s,background .12s}
+  .row:hover{border-color:var(--accent);background:#1d2434}
+  .row .id{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Menlo,monospace;font-size:11px}
+  .row .tag{font-size:9px;padding:2px 6px;border-radius:10px;flex-shrink:0;color:var(--muted);background:rgba(255,255,255,.05)}
+  .hint{color:var(--dim);font-size:11px;margin-top:8px;line-height:1.5}
+  /* ── Detail 面板 ── */
+  #detail{flex:1;overflow-y:auto;padding:14px 16px;background:var(--panel)}
+  .dhead{font-size:13px;font-weight:600;margin-bottom:8px;word-break:break-all}
+  .dhead .type{font-size:10px;padding:2px 7px;border-radius:8px;margin-right:6px;color:#fff;vertical-align:1px}
+  .dhead .type.fn{background:var(--func)} .dhead .type.cl{background:var(--class)} .dhead .type.fl{background:var(--file)}
+  .dsub{font-size:11px;color:var(--muted);margin-bottom:12px;word-break:break-all;font-family:ui-monospace,monospace}
+  .dsec{font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin:12px 0 6px}
+  .kv{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border)}
+  .kv span{color:var(--muted);font-size:11px}
+  .kv b{font-weight:500;font-family:ui-monospace,monospace;font-size:11px}
+  .up{color:var(--green)} .down{color:var(--func)}
+  /* ── 图例 ── */
+  .legend{position:absolute;bottom:14px;left:14px;background:rgba(18,22,31,.92);backdrop-filter:blur(6px);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:11px;display:flex;gap:14px;flex-wrap:wrap;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+  .legend span{display:flex;align-items:center;gap:6px;color:var(--muted)}
+  .legend i{width:12px;height:12px;border-radius:3px}
+  .legend .dot{border-radius:50%}
+  .legend .hex{clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:var(--class)}
+  .legend .sq{background:var(--file);border-radius:2px}
+  .legend .ln{width:16px;height:2px;border-radius:2px;background:var(--edge-calls)}
+  /* ── 语言分布 ── */
+  .langs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .lang{font-size:11px;padding:3px 10px;border-radius:14px;background:var(--panel2);border:1px solid var(--border);color:var(--muted)}
+  .lang b{color:var(--text);font-weight:600}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+  ::-webkit-scrollbar-track{background:transparent}
 </style>
-<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script src="/static/vis-network.min.js"></script>
 </head>
 <body>
 <header>
-  <h1>codegraph</h1>
+  <div class="brand"><div class="logo">cg</div><h1>codegraph</h1></div>
   <div class="repo" id="repoInfo">加载中…</div>
   <div class="stats" id="stats"></div>
 </header>
 <main>
   <aside>
     <div class="sec">
-      <h3>语义检索（BM25 + 向量）</h3>
+      <h3>语义检索</h3>
       <input id="searchInput" placeholder="如「做登录鉴权的函数」">
-      <button class="btn" id="searchBtn" disabled>检索（首次需建索引，较慢）</button>
+      <button class="btn" id="searchBtn" disabled>检索（首次建索引较慢）</button>
       <div class="list" id="searchList"></div>
-      <div class="hint" id="searchHint"></div>
     </div>
     <div class="sec">
-      <h3>符号查找</h3>
-      <input id="symInput" placeholder="符号片段，如 login 或 Gson.fromJson">
-      <button class="btn" id="symBtn">查找</button>
+      <h3>符号定位</h3>
+      <input id="symInput" placeholder="符号片段，如 Gson.fromJson">
+      <button class="btn" id="symBtn">查找并聚焦</button>
       <div class="list" id="symList"></div>
     </div>
-    <div class="sec">
-      <h3>选中节点分析</h3>
-      <div id="detail"><div class="hint">点击图谱中的节点，查看调用关系与爆炸半径。</div></div>
-      <div class="langbar" id="langBar"></div>
+    <div class="sec" id="modSec">
+      <h3>文件 · 模块</h3>
+      <div class="list" id="modList"></div>
+      <div class="hint">点击文件在图中聚焦；可拖拽/滚轮缩放。</div>
     </div>
+    <div class="sec">
+      <h3>语言分布</h3>
+      <div class="langs" id="langBar"></div>
+    </div>
+    <div id="detail"><div class="hint">点击图谱节点，查看调用关系与爆炸半径。</div></div>
   </aside>
   <div id="graph">
     <div class="legend">
-      <span><i style="background:#ff9800"></i>File</span>
-      <span><i style="background:var(--accent)"></i>Function</span>
-      <span><i style="background:var(--green)"></i>Class</span>
-      <span style="margin-left:8px"><i style="background:#fff"></i>CALLS</span>
-      <span><i style="background:#ff9800"></i>CONTAINS</span>
-      <span><i style="background:#e8c84a"></i>HAS_METHOD</span>
-      <span><i style="background:#ff7b5c"></i>IMPORTS</span>
+      <span><i class="sq"></i>File</span>
+      <span><i class="hex"></i>Class</span>
+      <span><i class="dot" style="background:var(--func)"></i>Function</span>
+      <span><i class="ln"></i>CALLS</span>
+      <span><i class="ln" style="background:var(--edge-contains)"></i>CONTAINS</span>
+      <span><i class="ln" style="background:var(--edge-has)"></i>HAS_METHOD</span>
+      <span><i class="ln" style="background:var(--edge-imports)"></i>IMPORTS</span>
     </div>
   </div>
 </main>
 <script>
 "use strict";
 let network = null;
-const EDGE_COLOR = {CALLS:"#ffffff", CONTAINS:"#ff9800", HAS_METHOD:"#e8c84a", IMPORTS:"#ff7b5c"};
-const NODE_COLOR = {File:"#5b4632", Function:"#2a4a8a", Class:"#1f6b4a"};
+const EDGE = {CALLS:{c:"#8a94ff",w:1.4}, CONTAINS:{c:"#3d4c66",w:1}, HAS_METHOD:{c:"#9d7bff",w:1.2}, IMPORTS:{c:"#2f3a52",w:1}};
+const NODE = {
+  File:{bg:"#5a3a1e",border:"#f0a35e",shape:"box",w:26},
+  Class:{bg:"#1f5c56",border:"#4fd1c5",shape:"hexagon",w:22},
+  Function:{bg:"#25418a",border:"#5b8def",shape:"dot",w:10}
+};
 
-async function jget(url){
-  const r = await fetch(url);
-  const j = await r.json();
-  if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
-  return j;
-}
+async function jget(url){ const r=await fetch(url); const j=await r.json(); if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }
 
 async function loadStats(){
   try{
-    const s = await jget("/api/stats");
-    document.getElementById("repoInfo").textContent = s.repo + " · " + s.db;
-    const st = document.getElementById("stats");
-    st.innerHTML =
-      `<div class="stat"><b>${s.files}</b><span>文件</span></div>` +
-      `<div class="stat"><b>${s.functions}</b><span>函数</span></div>` +
-      `<div class="stat"><b>${s.classes}</b><span>类</span></div>` +
-      `<div class="stat"><b>${s.total_edges}</b><span>边</span></div>`;
-    const lb = document.getElementById("langBar");
-    lb.innerHTML = Object.entries(s.languages||{}).map(([k,v])=>`<span>${k} ${v}</span>`).join("");
-  }catch(e){ document.getElementById("repoInfo").textContent = "加载失败：" + e.message; }
+    const s=await jget("/api/stats");
+    document.getElementById("repoInfo").textContent=s.repo;
+    document.getElementById("stats").innerHTML=
+      `<div class="stat"><b>${s.files}</b><span>FILES</span></div>`+
+      `<div class="stat"><b>${s.functions}</b><span>FUNCS</span></div>`+
+      `<div class="stat"><b>${s.classes}</b><span>CLASSES</span></div>`+
+      `<div class="stat"><b>${s.total_edges}</b><span>EDGES</span></div>`;
+    document.getElementById("langBar").innerHTML=
+      Object.entries(s.languages||{}).map(([k,v])=>`<span class="lang"><b>${k}</b> ${v}</span>`).join("");
+    loadModules();
+  }catch(e){ document.getElementById("repoInfo").textContent="加载失败: "+e.message; }
+}
+
+async function loadModules(){
+  try{
+    const g=await jget("/api/graph?limit=2000");
+    const files=g.nodes.filter(n=>n.label==="File").map(n=>n.file||n.name);
+    const seen=new Set(), mods=[];
+    for(const f of files){
+      const p=f.replace(/\\/g,"/"); const parts=p.split("/");
+      const mod=parts.length>1?parts[0]+"/"+parts[1]:p;
+      if(!seen.has(mod)){ seen.add(mod); mods.push({m:mod,c:files.filter(x=>x.startsWith(mod)).length}); }
+    }
+    mods.sort((a,b)=>b.c-a.c);
+    const list=document.getElementById("modList");
+    list.innerHTML=mods.slice(0,30).map(m=>
+      `<div class="row" onclick="focusMod('${m.m.replace(/'/g,"\\'")}')"><span class="id">${m.m}</span><span class="tag">${m.c}</span></div>`).join("");
+  }catch(e){ document.getElementById("modList").innerHTML='<div class="hint">'+e.message+'</div>'; }
 }
 
 async function loadGraph(){
   try{
-    const g = await jget("/api/graph?limit=600");
-    const nodes = g.nodes.map(n=>({id:n.id, label:n.name, title:`${n.label}\n${n.file}`, group:n.label, color:{background:NODE_COLOR[n.label]||"#444"}}));
-    const edges = g.edges.map(e=>({from:e.from, to:e.to, color:{color:EDGE_COLOR[e.type]||"#666"}, width:1.2, title:e.type}));
-    const container = document.getElementById("graph");
-    network = new vis.Network(container,
-      {nodes:new vis.DataSet(nodes), edges:new vis.DataSet(edges)},
-      {physics:{enabled:true, barnesHut:{gravitationalConstant:-2000, springLength:120, springConstant:0.04}},
-       nodes:{shape:"dot", size:12, font:{color:"#e6e9ef", size:11}},
-       interaction:{hover:true, tooltipDelay:150}});
-    network.on("click", p=>{ if(p.nodes.length) showDetail(p.nodes[0]); });
-    if(!nodes.length){ container.innerHTML = '<div class="hint" style="padding:20px">图谱为空，请先用 <code>codegraph analyze</code> 建库。</div>'; }
-  }catch(e){ document.getElementById("graph").innerHTML = '<div class="hint" style="padding:20px">图谱加载失败：'+e.message+'</div>'; }
+    const g=await jget("/api/graph?limit=800");
+    const nodes=g.nodes.map(n=>({id:n.id,label:n.label==="Function"?n.name:n.file||n.name,
+      title:`${n.label}\n${n.file}`,group:n.label,
+      shape:NODE[n.label].shape,borderWidth:1.4,
+      color:{background:NODE[n.label].bg,border:NODE[n.label].border,highlight:{background:NODE[n.label].border,border:"#fff"}},
+      size:NODE[n.label].w,
+      font:{color:"#cdd6e4",size:n.label==="File"?12:10,face:"ui-monospace,Menlo,monospace"}}));
+    const edges=g.edges.map(e=>({from:e.from,to:e.to,
+      color:{color:EDGE[e.type]?EDGE[e.type].c:"#556"},
+      width:EDGE[e.type]?EDGE[e.type].w:1,title:e.type,
+      smooth:{enabled:true,type:"dynamic"}}));
+    const container=document.getElementById("graph");
+    network=new vis.Network(container,
+      {nodes:new vis.DataSet(nodes),edges:new vis.DataSet(edges)},
+      {nodes:{font:{color:"#cdd6e4"}},
+       edges:{smooth:{enabled:true,type:"dynamic"},color:{inherit:false}},
+       layout:{improvedLayout:true},
+       physics:{enabled:true,solver:"barnesHut",
+         barnesHut:{gravitationalConstant:-3800,centralGravity:0.02,springLength:110,springConstant:0.03,damping:0.09},
+         stabilization:{enabled:true,iterations:220,updateInterval:40}},
+       interaction:{hover:true,tooltipDelay:120,zoomView:true,dragView:true,
+         navigationButtons:true,keyboard:true,
+         highlightNearest:{enabled:true,degree:1,hover:true,algorithm:"hierarchical"}},
+       groups:{
+         File:{color:{background:"#5a3a1e",border:"#f0a35e"}},
+         Class:{color:{background:"#1f5c56",border:"#4fd1c5"}},
+         Function:{color:{background:"#25418a",border:"#5b8def"}}}});
+    network.on("click",p=>{ if(p.nodes.length) showDetail(p.nodes[0]); });
+    if(!nodes.length) container.innerHTML='<div class="hint" style="padding:24px">图谱为空，先运行 codegraph analyze 建库。</div>';
+  }catch(e){ document.getElementById("graph").innerHTML='<div class="hint" style="padding:24px">图谱加载失败：'+e.message+'</div>'; }
 }
 
-function locate(id){
-  if(network){ try{ network.focus(id,{scale:1.2, animation:true}); }catch(_){} }
-}
+function focus(id){ if(network){ try{ network.focus(id,{scale:1.4,animation:{duration:400,easingFunction:"easeInOutQuad"}}); network.selectNodes([id]); }catch(_){} } }
+async function focusMod(m){ if(!network) return; const g=await jget("/api/graph?limit=800"); const ids=g.nodes.filter(n=>(n.file||"").startsWith(m)||(n.name||"").startsWith(m)).map(n=>n.id); if(ids.length){ network.selectNodes(ids); network.fit({nodes:ids,animation:{duration:500}}); } }
 
 async function showDetail(id){
-  const d = document.getElementById("detail");
-  d.innerHTML = '<div class="hint">分析中…</div>';
+  const d=document.getElementById("detail"); d.innerHTML='<div class="hint">分析中…</div>';
   try{
-    const [imp, callers, callees] = await Promise.all([
+    const [imp,cl,ce]=await Promise.all([
       jget(`/api/impact?symbol=${encodeURIComponent(id)}&depth=2`),
       jget(`/api/callers?symbol=${encodeURIComponent(id)}&depth=2`),
-      jget(`/api/callees?symbol=${encodeURIComponent(id)}&depth=2`)
-    ]);
-    const up = (imp.upstream||[]).map(x=>`<div class="kv"><span>${x.depth}</span><b class="up">${x.fqn||x.symbol}</b></div>`).join("");
-    const down = (imp.downstream||[]).map(x=>`<div class="kv"><span>${x.depth}</span><b class="down">${x.fqn||x.symbol}</b></div>`).join("");
-    const up2 = callers.map(x=>`<div class="kv"><span>${x.depth}</span><b class="up">${x.caller}</b></div>`).join("");
-    const down2 = callees.map(x=>`<div class="kv"><span>${x.depth}</span><b class="down">${x.callee}</b></div>`).join("");
-    d.innerHTML =
-      `<div class="hint" style="margin-bottom:6px">${id}</div>` +
-      (up2?`<h3 style="font-size:11px;color:var(--green);margin:6px 0 4px">调用者</h3>${up2}`:"") +
-      (down2?`<h3 style="font-size:11px;color:var(--ts);margin:6px 0 4px">被调用</h3>${down2}`:"") +
-      (up?`<h3 style="font-size:11px;color:var(--muted);margin:8px 0 4px">上游爆炸半径</h3>${up}`:"") +
-      (down?`<h3 style="font-size:11px;color:var(--muted);margin:8px 0 4px">下游爆炸半径</h3>${down}`:"") +
-      ((!up2&&!down2)?'<div class="hint">无调用关系</div>':"");
-  }catch(e){ d.innerHTML = '<div class="hint">分析失败：'+e.message+'</div>'; }
+      jget(`/api/callees?symbol=${encodeURIComponent(id)}&depth=2`)]);
+    const t=imp.symbol||id;
+    const up=cl.map(x=>`<div class="kv"><span>depth ${x.depth}</span><b class="up">${x.caller}</b></div>`).join("");
+    const down=ce.map(x=>`<div class="kv"><span>depth ${x.depth}</span><b class="down">${x.callee}</b></div>`).join("");
+    d.innerHTML=
+      `<div class="dhead"><span class="type fn">符号</span>${t.replace(/</g,"&lt;")}</div>`+
+      `<div class="dsub">${id.replace(/</g,"&lt;")}</div>`+
+      (up?`<div class="dsec">上游调用者 (${cl.length})</div>${up}`:"")+
+      (down?`<div class="dsec">下游被调用 (${ce.length})</div>${down}`:"")+
+      (!up&&!down?'<div class="hint">无直接调用关系</div>':"");
+  }catch(e){ d.innerHTML='<div class="hint">分析失败：'+e.message+'</div>'; }
 }
 
 async function doSearch(){
-  const q = document.getElementById("searchInput").value.trim();
-  const btn = document.getElementById("searchBtn");
-  const list = document.getElementById("searchList");
-  const hint = document.getElementById("searchHint");
-  if(!q) return;
-  btn.disabled = true; btn.textContent = "检索中…（首次建索引）"; list.innerHTML=""; hint.textContent="";
+  const q=document.getElementById("searchInput").value.trim(), btn=document.getElementById("searchBtn"), list=document.getElementById("searchList");
+  if(!q)return; btn.disabled=true;btn.textContent="检索中…（首次建索引）";list.innerHTML="";
   try{
-    const r = await jget(`/api/search?q=${encodeURIComponent(q)}&k=8`);
-    hint.textContent = "混合检索（BM25 + 向量）：" + r.length + " 条";
-    list.innerHTML = r.map(x=>`<div class="row" onclick="locate('${x.id.replace(/'/g,"\\'")}')"><span class="id">${x.id}</span><span class="tag">${x.score.toFixed(2)}</span></div>`).join("")
-      || '<div class="hint">无命中</div>';
-  }catch(e){ hint.textContent = "失败：" + e.message; }
-  finally{ btn.disabled=false; btn.textContent="检索（首次需建索引，较慢）"; }
+    const r=await jget(`/api/search?q=${encodeURIComponent(q)}&k=8`);
+    list.innerHTML=r.map(x=>`<div class="row" onclick="focus('${x.id.replace(/'/g,"\\'")}')"><span class="id">${x.id}</span><span class="tag">${x.score.toFixed(2)}</span></div>`).join("")||'<div class="hint">无命中</div>';
+  }catch(e){list.innerHTML='<div class="hint">'+e.message+'</div>';}finally{btn.disabled=false;btn.textContent="检索（首次建索引较慢）";}
 }
-
 async function doSym(){
-  const q = document.getElementById("symInput").value.trim();
-  const list = document.getElementById("symList");
-  if(!q) return;
+  const q=document.getElementById("symInput").value.trim(),list=document.getElementById("symList");
+  if(!q)return;
   try{
-    const r = await jget(`/api/symbols?q=${encodeURIComponent(q)}&limit=40`);
-    list.innerHTML = r.map(x=>`<div class="row" onclick="locate('${x.id.replace(/'/g,"\\'")}');showDetail('${x.id.replace(/'/g,"\\'")}')"><span class="id">${x.id}</span><span class="tag">${x.label}</span></div>`).join("")
-      || '<div class="hint">无匹配</div>';
-  }catch(e){ list.innerHTML = '<div class="hint">失败：'+e.message+'</div>'; }
+    const r=await jget(`/api/symbols?q=${encodeURIComponent(q)}&limit=40`);
+    list.innerHTML=r.map(x=>`<div class="row" onclick="focus('${x.id.replace(/'/g,"\\'")}');showDetail('${x.id.replace(/'/g,"\\'")}')"><span class="id">${x.id}</span><span class="tag">${x.label}</span></div>`).join("")||'<div class="hint">无匹配</div>';
+  }catch(e){list.innerHTML='<div class="hint">'+e.message+'</div>';}
 }
 
-document.getElementById("searchBtn").onclick = doSearch;
-document.getElementById("searchInput").addEventListener("keydown", e=>{ if(e.key==="Enter") doSearch(); });
-document.getElementById("symBtn").onclick = doSym;
-document.getElementById("symInput").addEventListener("keydown", e=>{ if(e.key==="Enter") doSym(); });
-loadStats();
-loadGraph();
+document.getElementById("searchBtn").onclick=doSearch;
+document.getElementById("searchInput").addEventListener("keydown",e=>{if(e.key==="Enter")doSearch();});
+document.getElementById("symBtn").onclick=doSym;
+document.getElementById("symInput").addEventListener("keydown",e=>{if(e.key==="Enter")doSym();});
+loadStats(); loadGraph();
 </script>
 </body>
 </html>

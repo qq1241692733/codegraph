@@ -163,10 +163,27 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_static(self, relpath: str):
+        """托管本地静态资源（如前端库），避免依赖外部 CDN。"""
+        name = Path(relpath).name  # 防目录穿越：只用文件名
+        p = Path(__file__).parent / "static" / name
+        if not p.exists():
+            return self._send_json({"error": "not found"}, 404)
+        body = p.read_bytes()
+        ctype = "application/javascript" if p.suffix == ".js" else (
+            "text/css" if p.suffix == ".css" else "application/octet-stream")
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
         u = urlparse(self.path)
         path, params = u.path, parse_qs(u.query)
         try:
+            if path.startswith("/static/"):
+                return self._send_static(path[len("/static/"):])
             if path == "/" or path == "/index.html":
                 self._send_html()
                 return
