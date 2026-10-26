@@ -47,15 +47,18 @@ def _risk_level(up_total: int, down_total: int) -> str:
 def _build_report(symbol: str, upstream: list[dict], downstream: list[dict], depth: int) -> dict:
     up = _group(upstream, "caller")
     down = _group(downstream, "callee")
+    files = sorted(set(up["files"]) | set(down["files"]))
     return {
         "symbol": symbol,
         "depth": depth,
         "risk": _risk_level(up["total"], down["total"]),
         "upstream": up,
         "downstream": down,
+        "files": files,
         "summary": (
             f"改动 {symbol} 会波及 {up['total']} 个上游调用者"
             f"（分布在 {len(up['files'])} 个文件）和 {down['total']} 个下游被调用者"
-            f"（分布在 {len(down['files'])} 个文件）。"
+            f"（分布在 {len(down['files'])} 个文件），"
+            f"共 {len(files)} 个文件受影响。"
         ),
     }
