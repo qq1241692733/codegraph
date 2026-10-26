@@ -32,12 +32,25 @@ def _group(items: list[dict], key: str) -> dict:
     }
 
 
+def _risk_level(up_total: int, down_total: int) -> str:
+    """根据上游调用者 + 下游被调用者的波及规模，评估本次改动风险等级。
+
+    波及规模 >= 10 → "high"；>= 5 → "medium"；否则 → "low"。
+    """
+    if up_total + down_total >= 10:
+        return "high"
+    if up_total + down_total >= 5:
+        return "medium"
+    return "low"
+
+
 def _build_report(symbol: str, upstream: list[dict], downstream: list[dict], depth: int) -> dict:
     up = _group(upstream, "caller")
     down = _group(downstream, "callee")
     return {
         "symbol": symbol,
         "depth": depth,
+        "risk": _risk_level(up["total"], down["total"]),
         "upstream": up,
         "downstream": down,
         "summary": (
